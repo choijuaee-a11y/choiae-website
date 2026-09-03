@@ -22,23 +22,21 @@ python3 -m http.server 8000
 # 브라우저에서 http://localhost:8000 접속
 ```
 
-## 상담 신청 폼 연결하기 (필수)
+## 상담 신청 폼 연결
 
 정적 사이트는 자체적으로 메일을 발송할 수 없어서, 무료 폼 전송 서비스인
-[Formspree](https://formspree.io)를 연결해 두었습니다. 아래 순서로 5분이면 활성화됩니다.
+[Formspree](https://formspree.io)를 연결해 두었습니다. `choijuaee@naver.com` 계정으로
+생성한 폼(`https://formspree.io/f/maeyjkqj`)에 연결이 완료된 상태입니다.
 
-1. https://formspree.io 에서 `choijuaee@naver.com` 으로 무료 계정을 만듭니다.
-2. 새 Form을 만들고, 발급되는 주소(`https://formspree.io/f/xxxxxxxx`)를 복사합니다.
-3. `index.html`에서 아래 줄을 찾아 `YOUR_FORM_ID`를 발급받은 값으로 교체합니다.
+홈페이지 하단 상담 신청 폼에 접수되는 내용은 `choijuaee@naver.com` 메일로 전달됩니다.
+**Formspree 대시보드에서 인증 메일의 링크를 클릭해야 실제로 접수가 시작되니, 아직 안 하셨다면
+`choijuaee@naver.com` 받은편지함에서 Formspree 인증 메일을 확인해주세요.**
 
-   ```html
-   <form id="consultForm" action="https://formspree.io/f/YOUR_FORM_ID" method="POST">
-   ```
+폼을 다른 계정/주소로 바꾸고 싶다면 `index.html`에서 아래 줄의 주소를 새 Formspree 폼 주소로 교체하면 됩니다.
 
-4. 저장 후 배포하면, 홈페이지 하단 상담 신청 폼에 접수되는 내용이 바로 `choijuaee@naver.com` 메일로 전달됩니다.
-
-연결 전까지는 폼 제출 시 "상담 폼이 아직 연결되지 않았습니다" 안내가 표시되며,
-전화(010-9878-4931)·카카오톡 채널 링크는 연결 여부와 무관하게 바로 동작합니다.
+```html
+<form id="consultForm" action="https://formspree.io/f/maeyjkqj" method="POST">
+```
 
 ## 배포하기 (GitHub Pages 예시)
 
@@ -49,7 +47,7 @@ python3 -m http.server 8000
 ## 내용 수정하기
 
 - **연락처/주소**: `index.html`에서 `contact-info`, `footer` 영역의 전화번호·이메일·주소를 수정합니다.
-- **취급업무 문구**: `#services` 섹션의 `service-card` 3개를 수정합니다.
+- **업무분야 탭 문구**: `#services` 섹션의 `tab-panel` 5개(암 진단비 등)를 수정합니다.
 - **색상**: `css/style.css` 최상단 `:root` 변수(`--gold` 등)를 바꾸면 전체 톤이 함께 바뀝니다.
 - **로고**: `assets/logo-icon.png`를 교체하면 헤더/히어로/회사소개/푸터/파비콘에 모두 반영됩니다.
   전체 조합 로고(아이콘+글자)가 필요하면 `assets/logo-full.png`를 사용하세요.
