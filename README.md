@@ -5,10 +5,12 @@
 ## 폴더 구조
 
 ```
-index.html        메인 페이지
-css/style.css      스타일
-js/main.js         모바일 메뉴, 상담 폼 전송, 맨 위로 버튼 등
-assets/logo.svg     로고(아이콘) SVG
+index.html            메인 페이지
+css/style.css          스타일
+js/main.js             모바일 메뉴, 상담 폼 전송, 맨 위로 버튼 등
+assets/logo-icon.png    로고 아이콘(방패+악수 마크). 헤더/파비콘/각 섹션에서 사용
+assets/logo-full.png    로고 전체 조합(아이콘+워드마크+태그라인). 필요 시 사용
+assets/logo-source.png  업로드된 원본 로고 파일(보관용)
 ```
 
 ## 로컬에서 확인하기
@@ -49,5 +51,5 @@ python3 -m http.server 8000
 - **연락처/주소**: `index.html`에서 `contact-info`, `footer` 영역의 전화번호·이메일·주소를 수정합니다.
 - **취급업무 문구**: `#services` 섹션의 `service-card` 3개를 수정합니다.
 - **색상**: `css/style.css` 최상단 `:root` 변수(`--gold` 등)를 바꾸면 전체 톤이 함께 바뀝니다.
-- **로고**: `assets/logo.svg`를 교체하면 헤더/히어로/푸터/파비콘에 모두 반영됩니다. 실제 제작하신
-  로고 파일(PNG/SVG)이 있다면 해당 파일로 덮어써 주세요.
+- **로고**: `assets/logo-icon.png`를 교체하면 헤더/히어로/회사소개/푸터/파비콘에 모두 반영됩니다.
+  전체 조합 로고(아이콘+글자)가 필요하면 `assets/logo-full.png`를 사용하세요.
