@@ -3,9 +3,9 @@
    ========================================================================== */
 
 :root {
-  --gold: #b9975c;
-  --gold-dark: #8c7038;
-  --gold-light: #f3ead9;
+  --gold: #c9af5e;
+  --gold-dark: #a1842b;
+  --gold-light: #f6eeda;
   --ink: #262220;
   --ink-soft: #57504a;
   --cream: #faf7f2;
@@ -143,7 +143,7 @@ p {
 .btn--gold {
   background: var(--gold);
   color: var(--white);
-  box-shadow: 0 8px 20px rgba(185, 151, 92, .35);
+  box-shadow: 0 8px 20px rgba(201, 175, 94, .35);
 }
 
 .btn--gold:hover {
@@ -287,7 +287,7 @@ p {
   position: relative;
   padding: 120px 0 96px;
   background:
-    radial-gradient(1000px 500px at 85% -10%, rgba(185, 151, 92, .18), transparent 60%),
+    radial-gradient(1000px 500px at 85% -10%, rgba(201, 175, 94, .18), transparent 60%),
     var(--cream);
   overflow: hidden;
 }
@@ -495,64 +495,121 @@ p {
   font-family: var(--serif);
 }
 
-/* Services ------------------------------------------------------------- */
+/* Services (업무분야 탭) ---------------------------------------------------- */
 
-.service-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 24px;
+.tabs-bar {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+  margin-bottom: 32px;
+  scrollbar-width: none;
 }
 
-.service-card {
+.tabs-bar::-webkit-scrollbar {
+  display: none;
+}
+
+.tab-btn {
+  flex: none;
+  padding: 14px 24px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--cream);
+  color: var(--ink-soft);
+  font-family: var(--sans);
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background .15s ease, color .15s ease, border-color .15s ease;
+}
+
+.tab-btn:hover {
+  border-color: var(--gold);
+  color: var(--gold-dark);
+}
+
+.tab-btn.is-active {
+  background: var(--gold);
+  border-color: var(--gold);
+  color: var(--white);
+}
+
+.tab-panels {
+  position: relative;
+}
+
+.tab-panel {
+  display: none;
   background: var(--white);
   border: 1px solid var(--line);
   border-radius: var(--radius);
-  padding: 32px 28px;
-  transition: transform .18s ease, box-shadow .18s ease;
-}
-
-.service-card:hover {
-  transform: translateY(-6px);
   box-shadow: var(--shadow);
+  padding: 44px;
+  gap: 40px;
+  grid-template-columns: 1.2fr .8fr;
+  align-items: center;
 }
 
-.service-card .icon {
-  width: 52px;
-  height: 52px;
-  border-radius: 14px;
-  background: var(--gold-light);
-  color: var(--gold-dark);
+.tab-panel.is-active {
+  display: grid;
+}
+
+.tab-panel__icon {
+  justify-self: center;
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  max-width: 220px;
+  border-radius: 50%;
+  background: linear-gradient(160deg, var(--gold) 0%, var(--gold-dark) 100%);
   display: flex;
   align-items: center;
   justify-content: center;
-  margin-bottom: 20px;
-  font-size: 22px;
+  font-size: 76px;
+  color: var(--white);
+  box-shadow: 0 14px 30px rgba(161, 132, 43, .28);
+  order: 2;
 }
 
-.service-card h3 {
-  font-size: 19px;
-  margin-bottom: 10px;
+.tab-panel__body h3 {
+  font-size: 24px;
+  margin-bottom: 14px;
 }
 
-.service-card p {
+.tab-panel__desc {
   color: var(--ink-soft);
-  font-size: 14.5px;
-  margin-bottom: 16px;
+  font-size: 15px;
+  margin-bottom: 24px;
 }
 
-.service-card ul {
+.tab-panel__help {
+  background: var(--cream);
+  border-radius: 12px;
+  padding: 20px 22px;
+}
+
+.tab-panel__help .label {
+  display: block;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--gold-dark);
+  margin-bottom: 12px;
+}
+
+.tab-panel__help ul {
   display: grid;
-  gap: 8px;
+  gap: 10px;
 }
 
-.service-card ul li {
-  font-size: 13.5px;
+.tab-panel__help li {
+  font-size: 14px;
   color: var(--ink-soft);
   padding-left: 18px;
   position: relative;
 }
 
-.service-card ul li::before {
+.tab-panel__help li::before {
   content: "";
   position: absolute;
   left: 0;
@@ -743,7 +800,7 @@ p {
 .field textarea:focus {
   outline: none;
   border-color: var(--gold);
-  box-shadow: 0 0 0 3px rgba(185, 151, 92, .18);
+  box-shadow: 0 0 0 3px rgba(201, 175, 94, .18);
 }
 
 .field textarea {
@@ -884,16 +941,22 @@ p {
     grid-template-columns: 1fr;
   }
 
-  .service-grid {
-    grid-template-columns: repeat(2, 1fr);
-  }
-
   .process-grid {
     grid-template-columns: repeat(2, 1fr);
   }
 
   .footer__top {
     grid-template-columns: 1fr 1fr;
+  }
+
+  .tab-panel {
+    padding: 32px;
+    gap: 28px;
+  }
+
+  .tab-panel__icon {
+    max-width: 140px;
+    font-size: 52px;
   }
 }
 
@@ -920,7 +983,6 @@ p {
     border-bottom: 1px solid var(--line);
   }
 
-  .service-grid,
   .process-grid,
   .form-row,
   .contact-quick,
@@ -934,6 +996,17 @@ p {
 
   .hero {
     padding: 96px 0 64px;
+  }
+
+  .tab-panel {
+    grid-template-columns: 1fr;
+    padding: 28px;
+  }
+
+  .tab-panel__icon {
+    order: 0;
+    max-width: 110px;
+    font-size: 44px;
   }
 
   .brand {

@@ -125,43 +125,115 @@
     <div class="container">
       <div class="section-head">
         <span class="eyebrow">SERVICES</span>
-        <h2>주요 취급업무</h2>
-        <p>최애손해사정이 전문적으로 다루는 손해사정 분야입니다.</p>
+        <h2>업무분야</h2>
+        <p>질병상해보상은 단순히 실무서와 사례보고서를 참조한다고 되는 일이 아닙니다.<br>
+          항목을 눌러 최애손해사정이 다루는 분야를 확인해 보세요.</p>
       </div>
 
-      <div class="service-grid">
-        <article class="service-card">
-          <div class="icon">＋</div>
-          <h3>질병 진단비·상해 손해사정</h3>
-          <p>질병 진단 및 상해 사고에 대해 받으실 수 있는 보험금을 정확히 산정하고 청구를 돕습니다.</p>
-          <ul>
-            <li>질병 진단비 청구·산정 검토</li>
-            <li>상해 후유장해 손해사정</li>
-            <li>보험금 과소·부지급 대응</li>
-          </ul>
-        </article>
+      <div class="tabs-bar" role="tablist" id="serviceTabs">
+        <button type="button" class="tab-btn is-active" data-tab="cancer" role="tab" aria-selected="true">암 진단비</button>
+        <button type="button" class="tab-btn" data-tab="cardio" role="tab" aria-selected="false">심·뇌혈관질환</button>
+        <button type="button" class="tab-btn" data-tab="disability" role="tab" aria-selected="false">사망·후유장해</button>
+        <button type="button" class="tab-btn" data-tab="duty" role="tab" aria-selected="false">고지·통지의무</button>
+        <button type="button" class="tab-btn" data-tab="accident" role="tab" aria-selected="false">교통사고·배상책임</button>
+      </div>
 
-        <article class="service-card">
-          <div class="icon">🚗</div>
-          <h3>교통사고 손해사정</h3>
-          <p>교통사고로 인한 인적·물적 손해를 조사하여 정당한 보상이 이루어지도록 지원합니다.</p>
-          <ul>
-            <li>과실비율·손해액 검토</li>
-            <li>대인·대물 보상 손해사정</li>
-            <li>합의 전 보상 범위 컨설팅</li>
-          </ul>
-        </article>
+      <div class="tab-panels">
+        <div class="tab-panel is-active" id="panel-cancer" role="tabpanel">
+          <div class="tab-panel__body">
+            <h3>암 진단비</h3>
+            <p class="tab-panel__desc">
+              암(cancer)이란 세포가 사멸주기를 무시하고 비정상적으로 증식하여 인체의 기능을 망가뜨리는 악성종양(malignant tumor)을 말하며,
+              보험 약관에서는 진단확정 시점과 조직검사 등 진단 방법에 따라 지급 기준을 정하고 있습니다.
+              특히 경계성종양·유사암은 일반암과 지급 기준이 달라 다툼이 자주 발생하는 영역입니다.
+            </p>
+            <div class="tab-panel__help">
+              <span class="label">이런 경우 상담이 필요합니다</span>
+              <ul>
+                <li>경계성종양·유사암으로 분류되어 진단비가 줄어들거나 거절된 경우</li>
+                <li>진단 시점, 조직검사 결과를 두고 보험사와 이견이 있는 경우</li>
+                <li>가입한 여러 보험의 진단비를 각각 정확히 청구하고 싶은 경우</li>
+              </ul>
+            </div>
+          </div>
+          <div class="tab-panel__icon" aria-hidden="true">🎗</div>
+        </div>
 
-        <article class="service-card">
-          <div class="icon">⚖</div>
-          <h3>보험금 해지·무효 대응</h3>
-          <p>보험회사의 계약 해지·무효 통보에 대해 사실관계를 확인하고 대응 방향을 함께 세웁니다.</p>
-          <ul>
-            <li>해지·무효 사유 검토</li>
-            <li>대응 자료 준비 지원</li>
-            <li>이의제기·분쟁 대응 컨설팅</li>
-          </ul>
-        </article>
+        <div class="tab-panel" id="panel-cardio" role="tabpanel">
+          <div class="tab-panel__body">
+            <h3>심·뇌혈관질환</h3>
+            <p class="tab-panel__desc">
+              급성심근경색증, 뇌졸중(뇌출혈·뇌경색) 등 특정 심장·뇌혈관 질환으로 진단받았을 때 지급되는 진단비·수술비를 말합니다.
+              질병 코드(KCD)와 약관상 진단 기준이 정확히 일치하지 않거나, 검사 방법에 따라 인정 여부가 갈리는 경우가 많습니다.
+            </p>
+            <div class="tab-panel__help">
+              <span class="label">이런 경우 상담이 필요합니다</span>
+              <ul>
+                <li>진단명과 약관상 보장 질병 코드가 일치하는지 확인이 필요한 경우</li>
+                <li>검사 방법(영상 판독 기준 등)을 이유로 보험금이 거절된 경우</li>
+                <li>수술비·입원비를 포함해 받을 수 있는 보험금을 정확히 알고 싶은 경우</li>
+              </ul>
+            </div>
+          </div>
+          <div class="tab-panel__icon" aria-hidden="true">🩺</div>
+        </div>
+
+        <div class="tab-panel" id="panel-disability" role="tabpanel">
+          <div class="tab-panel__body">
+            <h3>사망·후유장해</h3>
+            <p class="tab-panel__desc">
+              피보험자가 사망하거나 질병·상해로 신체에 영구적인 장해가 남았을 때, 약관의 장해분류표에 따른 지급률로 산정되는 보험금입니다.
+              장해 등급 판정과 진단 시기, 평가 방법을 둘러싼 분쟁이 특히 많은 영역입니다.
+            </p>
+            <div class="tab-panel__help">
+              <span class="label">이런 경우 상담이 필요합니다</span>
+              <ul>
+                <li>후유장해 등급 판정 결과에 이견이 있는 경우</li>
+                <li>장해 진단 시기·평가 방법에 대해 보험사와 견해차가 있는 경우</li>
+                <li>여러 보험사에 중복 가입된 보장을 함께 정리해 청구하고 싶은 경우</li>
+              </ul>
+            </div>
+          </div>
+          <div class="tab-panel__icon" aria-hidden="true">🛡</div>
+        </div>
+
+        <div class="tab-panel" id="panel-duty" role="tabpanel">
+          <div class="tab-panel__body">
+            <h3>고지·통지의무</h3>
+            <p class="tab-panel__desc">
+              보험 가입 시 계약 전 알릴 의무(고지의무)와, 가입 후 위험이 변경되었을 때 알릴 의무(통지의무)를 말합니다.
+              이를 위반했다고 판단되면 보험사가 계약을 해지하거나 보험금 지급을 거절할 수 있어, 위반 여부와 인과관계를 꼼꼼히 따져봐야 합니다.
+            </p>
+            <div class="tab-panel__help">
+              <span class="label">이런 경우 상담이 필요합니다</span>
+              <ul>
+                <li>고지의무 위반을 이유로 보험금 부지급을 통보받은 경우</li>
+                <li>계약 해지·무효 통보를 받아 대응이 필요한 경우</li>
+                <li>고지 대상 여부, 제척기간 경과 여부가 궁금한 경우</li>
+              </ul>
+            </div>
+          </div>
+          <div class="tab-panel__icon" aria-hidden="true">📢</div>
+        </div>
+
+        <div class="tab-panel" id="panel-accident" role="tabpanel">
+          <div class="tab-panel__body">
+            <h3>교통사고·배상책임</h3>
+            <p class="tab-panel__desc">
+              교통사고로 발생한 인적·물적 손해에 대해 과실비율에 따라 책임을 나누고 손해액을 산정하는 절차입니다.
+              과실비율, 후유장해 등급, 향후 치료비·휴업손해 산정 방식에 따라 실제 받는 보상액이 크게 달라질 수 있습니다.
+            </p>
+            <div class="tab-panel__help">
+              <span class="label">이런 경우 상담이 필요합니다</span>
+              <ul>
+                <li>보험사가 제시한 과실비율에 동의하기 어려운 경우</li>
+                <li>합의 전 예상 손해액과 보상 범위를 미리 확인하고 싶은 경우</li>
+                <li>후유장해가 예상되어 향후 손해까지 함께 검토가 필요한 경우</li>
+              </ul>
+            </div>
+          </div>
+          <div class="tab-panel__icon" aria-hidden="true">🚗</div>
+        </div>
       </div>
     </div>
   </section>

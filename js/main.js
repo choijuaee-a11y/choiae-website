@@ -24,6 +24,27 @@
     });
   }
 
+  // 업무분야 탭
+  var serviceTabs = document.getElementById("serviceTabs");
+  if (serviceTabs) {
+    serviceTabs.querySelectorAll(".tab-btn").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        serviceTabs.querySelectorAll(".tab-btn").forEach(function (b) {
+          b.classList.remove("is-active");
+          b.setAttribute("aria-selected", "false");
+        });
+        btn.classList.add("is-active");
+        btn.setAttribute("aria-selected", "true");
+
+        document.querySelectorAll(".tab-panel").forEach(function (panel) {
+          panel.classList.remove("is-active");
+        });
+        var target = document.getElementById("panel-" + btn.dataset.tab);
+        if (target) target.classList.add("is-active");
+      });
+    });
+  }
+
   // 맨 위로 버튼
   var toTop = document.getElementById("toTop");
   if (toTop) {
