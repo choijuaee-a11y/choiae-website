@@ -12,6 +12,7 @@ import argparse
 import asyncio
 import datetime as dt
 import json
+import math
 import os
 import re
 import shutil
@@ -24,7 +25,7 @@ from PIL import Image, ImageDraw, ImageFont
 BASE_DIR = Path(__file__).resolve().parent
 W, H = 1080, 1920
 FPS = 30
-SCENE_PADDING = 0.35  # 장면마다 음성 뒤에 두는 여백(초)
+SCENE_PADDING = 0.45  # 장면마다 음성 뒤에 두는 여백(초)
 
 # 운영체제별로 흔히 설치된 한글 굵은 폰트 후보
 FONT_CANDIDATES = [
@@ -188,21 +189,57 @@ def media_duration(path):
 
 
 # ---------------------------------------------------------------------------
-# 3. 장면 이미지 (Pillow)
+# 3. 애니메이션 (Pillow로 프레임을 그려 FFmpeg로 바로 인코딩)
 # ---------------------------------------------------------------------------
+
+PAN_X, PAN_Y = 160, 260  # 배경이 천천히 움직일 여유 공간(px)
+
 
 def hex_rgb(h):
     h = h.lstrip("#")
     return tuple(int(h[i:i + 2], 16) for i in (0, 2, 4))
 
 
-def gradient_background(top, bottom):
-    t, b = hex_rgb(top), hex_rgb(bottom)
-    col = Image.new("RGB", (1, H))
-    for y in range(H):
-        r = y / (H - 1)
-        col.putpixel((0, y), tuple(int(t[i] + (b[i] - t[i]) * r) for i in range(3)))
-    return col.resize((W, H))
+def clamp(t):
+    return max(0.0, min(1.0, t))
+
+
+def ease_out(t):
+    return 1 - (1 - clamp(t)) ** 3
+
+
+def ease_out_back(t):
+    """끝에서 살짝 튀어나왔다 돌아오는 탄성 효과."""
+    t = clamp(t)
+    return 1 + 2.70158 * (t - 1) ** 3 + 1.70158 * (t - 1) ** 2
+
+
+def blend(c1, c2, a):
+    """c1 → c2 로 a(0~1) 만큼 섞은 색."""
+    return tuple(int(c1[i] + (c2[i] - c1[i]) * a) for i in range(3))
+
+
+def make_background(colors, width, height, seed=7):
+    """세로 그라데이션 위에 흐릿한 금색 빛망울(보케)을 얹은 큰 배경."""
+    import random
+    from PIL import ImageFilter
+
+    t, b = hex_rgb(colors["background"]), hex_rgb(colors["background_bottom"])
+    col = Image.new("RGB", (1, height))
+    for y in range(height):
+        col.putpixel((0, y), blend(t, b, y / (height - 1)))
+    bg = col.resize((width, height)).convert("RGBA")
+
+    rnd = random.Random(seed)
+    glow = Image.new("RGBA", (width, height), (0, 0, 0, 0))
+    gd = ImageDraw.Draw(glow)
+    gold = hex_rgb(colors["highlight"])
+    for _ in range(22):
+        r = rnd.randint(30, 150)
+        x, y = rnd.randint(0, width), rnd.randint(0, height)
+        gd.ellipse([x - r, y - r, x + r, y + r], fill=(*gold, rnd.randint(18, 55)))
+    glow = glow.filter(ImageFilter.GaussianBlur(28))
+    return Image.alpha_composite(bg, glow).convert("RGB")
 
 
 def wrap_words(draw, text, font, max_width):
@@ -227,93 +264,227 @@ def wrap_words(draw, text, font, max_width):
     return lines
 
 
-def draw_highlighted_line(draw, x, y, line, highlight, font, color, hl_color):
-    """line 안의 highlight 부분만 금색으로 그린다."""
-    parts = re.split(f"({re.escape(highlight)})", line) if highlight else [line]
+def text_layer(text, font, color, highlight="", hl_color=None):
+    """글자만 있는 투명 레이어. highlight 부분은 hl_color 로 칠하고 그 x 범위를 함께 돌려준다."""
+    ascent, descent = font.getmetrics()
+    measure = ImageDraw.Draw(Image.new("RGBA", (1, 1)))
+    width = int(measure.textlength(text, font=font)) + 8
+    layer = Image.new("RGBA", (width, ascent + descent + 8), (0, 0, 0, 0))
+    d = ImageDraw.Draw(layer)
+    hl_range = None
+    parts = re.split(f"({re.escape(highlight)})", text) if highlight else [text]
+    x = 4
     for part in parts:
         if not part:
             continue
-        draw.text((x, y), part, font=font, fill=hl_color if part == highlight else color)
-        x += draw.textlength(part, font=font)
+        is_hl = part == highlight
+        d.text((x, 4), part, font=font, fill=(*(hl_color if is_hl else color), 255))
+        w = d.textlength(part, font=font)
+        if is_hl and hl_range is None:
+            hl_range = (x, x + w)
+        x += w
+    return layer, hl_range
 
 
-def render_scene(scene, idx, total, cfg, font_path, logo, out_path):
-    colors = cfg["colors"]
-    brand = cfg["brand"]
-    img = gradient_background(colors["background"], colors["background_bottom"])
-    draw = ImageDraw.Draw(img)
+def paste_layer(frame, layer, cx, cy, scale=1.0, alpha=1.0):
+    """레이어를 (cx, cy) 중심에 크기·투명도를 적용해 붙인다."""
+    if alpha <= 0.01 or scale <= 0.01:
+        return
+    if abs(scale - 1.0) > 0.001:
+        layer = layer.resize((max(1, int(layer.width * scale)), max(1, int(layer.height * scale))),
+                             Image.BILINEAR)
+    if alpha < 0.999:
+        layer = layer.copy()
+        layer.putalpha(layer.getchannel("A").point(lambda v: int(v * alpha)))
+    frame.paste(layer, (int(cx - layer.width / 2), int(cy - layer.height / 2)), layer)
 
-    # 상단 진행바
-    bar_w = int(W * (idx + 1) / total)
-    draw.rectangle([0, 0, W, 10], fill=(60, 52, 44))
-    draw.rectangle([0, 0, bar_w, 10], fill=hex_rgb(colors["highlight"]))
 
-    # 상단 로고 + 상호
-    top = 150
+class SceneAnimation:
+    """장면 하나의 레이아웃을 미리 계산해 두고, 시간 t 에 맞는 모습을 그린다."""
+
+    def __init__(self, scene, idx, total, start, duration, speech, cfg, font_path):
+        self.idx, self.total = idx, total
+        self.start, self.duration, self.speech = start, duration, speech
+        self.is_first, self.is_last = idx == 0, idx == total - 1
+        self.colors = {k: hex_rgb(v) for k, v in cfg["colors"].items()}
+        self.brand = cfg["brand"]
+        c = self.colors
+        measure = ImageDraw.Draw(Image.new("RGB", (1, 1)))
+
+        # 가운데 핵심 문구: 줄마다 레이어를 만들어 둔다
+        caption = scene["caption"].strip()
+        highlight = scene.get("highlight", "").strip()
+        size = 104 if self.is_first else 88
+        while True:
+            font = ImageFont.truetype(font_path, size)
+            lines = wrap_words(measure, caption, font, W - 160)
+            if len(lines) <= 4 or size <= 56:
+                break
+            size -= 6
+        line_h = int(size * 1.35)
+        top = (H - line_h * len(lines)) / 2 - 80
+        self.caption_lines = []
+        for i, line in enumerate(lines):
+            layer, hl = text_layer(line, font, c["text"], highlight, c["highlight"])
+            self.caption_lines.append((layer, hl, top + line_h * i + line_h / 2))
+        self.accent_y = top + line_h * len(lines) + 30
+
+        # 내레이션 자막: 단어별 위치를 계산해 두고 말하는 속도에 맞춰 밝혀 준다
+        self.narr_font = ImageFont.truetype(font_path, 44)
+        self.words = []  # (단어, x, y, 이 단어가 끝나는 글자 비율)
+        narr_lines = wrap_words(measure, scene["narration"].strip(), self.narr_font, W - 200)[:4]
+        total_chars = sum(len(l.replace(" ", "")) for l in narr_lines) or 1
+        seen, y = 0, self.accent_y + 70
+        for line in narr_lines:
+            x = (W - measure.textlength(line, font=self.narr_font)) / 2
+            for word in line.split():
+                seen += len(word)
+                self.words.append((word, x, y, seen / total_chars))
+                x += measure.textlength(word + " ", font=self.narr_font)
+            y += 64
+
+        self.small_font = ImageFont.truetype(font_path, 40)
+        if self.is_last:
+            btn_font = ImageFont.truetype(font_path, 64)
+            tw = measure.textlength(self.brand["phone"], font=btn_font)
+            self.button = Image.new("RGBA", (int(tw) + 120, 130), (0, 0, 0, 0))
+            bd = ImageDraw.Draw(self.button)
+            bd.rounded_rectangle([0, 0, self.button.width - 1, 129], radius=65, fill=(*c["highlight"], 255))
+            bd.text((60, 22), self.brand["phone"], font=btn_font, fill=(*c["background"], 255))
+            self.cta_layer, _ = text_layer(self.brand["cta"], self.small_font, c["sub_text"])
+
+    def draw(self, frame, draw, t):
+        c = self.colors
+        bg = c["background_bottom"]
+        # 장면이 끝날 때 글자들이 사라지는 정도 (마지막 장면은 끝까지 유지)
+        exit_a = 1.0 if self.is_last else clamp((self.duration - t) / 0.25)
+
+        # 1) 핵심 문구: 첫 장면은 '팡' 하고 튀어나오고, 나머지는 아래에서 미끄러져 올라온다
+        for i, (layer, hl, cy) in enumerate(self.caption_lines):
+            lt = (t - 0.09 * i) / 0.45
+            if self.is_first:
+                scale, dy = 0.55 + 0.45 * ease_out_back(lt), 0
+            else:
+                scale, dy = 1.0, (1 - ease_out(lt)) * 80
+            paste_layer(frame, layer, W / 2, cy + dy, scale, clamp(lt * 2) * exit_a)
+
+            # 강조 단어 아래 형광펜 밑줄이 왼쪽에서 오른쪽으로 그어진다
+            if hl:
+                p = ease_out((t - 0.09 * i - 0.45) / 0.35)
+                if p > 0:
+                    x0 = (W - layer.width) / 2 + hl[0]
+                    x1 = x0 + (hl[1] - hl[0]) * p
+                    yb = cy + layer.height / 2 - 4
+                    draw.rectangle([x0, yb, x1, yb + 10], fill=blend(bg, c["highlight"], exit_a))
+
+        # 2) 가운데 강조선이 양옆으로 늘어난다
+        half = 60 * ease_out((t - 0.3) / 0.4)
+        if half > 1:
+            ay = self.accent_y
+            draw.rectangle([W / 2 - half, ay, W / 2 + half, ay + 8], fill=blend(bg, c["highlight"], exit_a))
+
+        # 3) 노래방 자막: 말한 단어는 밝게, 지금 말하는 단어는 금색, 아직 안 한 단어는 흐리게
+        spoken = clamp((t - 0.1) / max(self.speech, 0.1))
+        fade_in = ease_out(t / 0.3)
+        prev_end = 0.0
+        for word, x, y, end in self.words:
+            if spoken >= end:
+                color = c["sub_text"]
+            elif spoken >= prev_end:
+                color = c["highlight"]
+            else:
+                color = blend(bg, c["sub_text"], 0.35)
+            prev_end = end
+            draw.text((x, y), word, font=self.narr_font, fill=blend(bg, color, fade_in * exit_a))
+
+        # 4) 하단: 마지막 장면은 상담 버튼이 튀어나와 두근거리고, 나머지는 전화번호 표시
+        if self.is_last:
+            bt = (t - 0.4) / 0.5
+            if bt > 0:
+                pulse = 1 + 0.04 * math.sin(2 * math.pi * max(t - 0.9, 0) / 1.1) if bt >= 1 else 1
+                paste_layer(frame, self.button, W / 2, H - 405, ease_out_back(bt) * pulse)
+                paste_layer(frame, self.cta_layer, W / 2, H - 270, alpha=ease_out((t - 0.7) / 0.4))
+        else:
+            text = f"상담 {self.brand['phone']}"
+            tw = draw.textlength(text, font=self.small_font)
+            draw.text(((W - tw) / 2, H - 300), text, font=self.small_font, fill=c["sub_text"])
+
+
+def make_header(cfg, font_path, logo):
+    """상단 로고 + 상호 + 태그라인 레이어."""
+    c, brand = cfg["colors"], cfg["brand"]
     name_font = ImageFont.truetype(font_path, 52)
     tag_font = ImageFont.truetype(font_path, 26)
-    name_w = draw.textlength(brand["name"], font=name_font)
+    layer = Image.new("RGBA", (W, 150), (0, 0, 0, 0))
+    d = ImageDraw.Draw(layer)
+    name_w = d.textlength(brand["name"], font=name_font)
     logo_w = logo.width + 24 if logo else 0
     x0 = (W - (logo_w + name_w)) / 2
     if logo:
-        img.paste(logo, (int(x0), top - 10), logo)
-    draw.text((x0 + logo_w, top), brand["name"], font=name_font, fill=hex_rgb(colors["text"]))
-    tag_w = draw.textlength(brand["tagline"], font=tag_font)
-    draw.text(((W - tag_w) / 2, top + 90), brand["tagline"], font=tag_font, fill=hex_rgb(colors["highlight"]))
+        layer.paste(logo, (int(x0), 0), logo)
+    d.text((x0 + logo_w, 10), brand["name"], font=name_font, fill=hex_rgb(c["text"]))
+    tag_w = d.textlength(brand["tagline"], font=tag_font)
+    d.text(((W - tag_w) / 2, 100), brand["tagline"], font=tag_font, fill=hex_rgb(c["highlight"]))
+    return layer
 
-    # 가운데 핵심 문구 (첫 장면은 더 크게)
-    caption = scene["caption"].strip()
-    size = 104 if idx == 0 else 88
-    while True:
-        font = ImageFont.truetype(font_path, size)
-        lines = wrap_words(draw, caption, font, W - 160)
-        if len(lines) <= 4 or size <= 56:
-            break
-        size -= 6
-    line_h = int(size * 1.35)
-    block_h = line_h * len(lines)
-    y = (H - block_h) / 2 - 40
-    highlight = scene.get("highlight", "").strip()
-    for line in lines:
-        lw = draw.textlength(line, font=font)
-        draw_highlighted_line(draw, (W - lw) / 2, y, line, highlight, font,
-                              hex_rgb(colors["text"]), hex_rgb(colors["highlight"]))
-        y += line_h
 
-    # 강조선
-    accent_y = y + 30
-    draw.rectangle([W / 2 - 60, accent_y, W / 2 + 60, accent_y + 8], fill=hex_rgb(colors["highlight"]))
+def render_video(scenes, total, cfg, font_path, logo, audio, out_path, thumb_path):
+    """모든 프레임을 그려 FFmpeg 로 바로 보내 MP4 를 만든다."""
+    bg = make_background(cfg["colors"], W + PAN_X, H + PAN_Y)
+    header = make_header(cfg, font_path, logo)
+    gold = hex_rgb(cfg["colors"]["highlight"])
 
-    # 강조선 아래 내레이션 자막
-    narr_font = ImageFont.truetype(font_path, 44)
-    ny = accent_y + 70
-    for line in wrap_words(draw, scene["narration"].strip(), narr_font, W - 200)[:4]:
-        lw = draw.textlength(line, font=narr_font)
-        draw.text(((W - lw) / 2, ny), line, font=narr_font, fill=hex_rgb(colors["sub_text"]))
-        ny += 64
+    proc = subprocess.Popen(
+        ["ffmpeg", "-y", "-loglevel", "error",
+         "-f", "rawvideo", "-pix_fmt", "rgb24", "-s", f"{W}x{H}", "-r", str(FPS), "-i", "-",
+         "-i", str(audio),
+         "-c:v", "libx264", "-preset", "medium", "-crf", "20", "-pix_fmt", "yuv420p",
+         "-c:a", "aac", "-b:a", "160k", "-t", f"{total:.2f}", str(out_path)],
+        stdin=subprocess.PIPE, stderr=subprocess.PIPE,
+    )
+    n_frames = int(round(total * FPS))
+    thumb_frame = int(round(min(1.6, scenes[0].duration - 0.3) * FPS))
+    current, last_pct = 0, -1
+    try:
+        for f in range(n_frames):
+            t = f / FPS
+            while current < len(scenes) - 1 and t >= scenes[current + 1].start:
+                current += 1
+            scene = scenes[current]
 
-    # 하단 안내 (마지막 장면은 큰 상담 버튼)
-    sub_font = ImageFont.truetype(font_path, 40)
-    if idx == total - 1:
-        btn_font = ImageFont.truetype(font_path, 64)
-        text = brand["phone"]
-        tw = draw.textlength(text, font=btn_font)
-        bx0, by0 = (W - tw) / 2 - 60, H - 470
-        draw.rounded_rectangle([bx0, by0, bx0 + tw + 120, by0 + 130], radius=65,
-                               fill=hex_rgb(colors["highlight"]))
-        draw.text(((W - tw) / 2, by0 + 22), text, font=btn_font, fill=hex_rgb(colors["background"]))
-        cta_w = draw.textlength(brand["cta"], font=sub_font)
-        draw.text(((W - cta_w) / 2, by0 + 175), brand["cta"], font=sub_font, fill=hex_rgb(colors["sub_text"]))
-    else:
-        text = f"상담 {brand['phone']}"
-        tw = draw.textlength(text, font=sub_font)
-        draw.text(((W - tw) / 2, H - 300), text, font=sub_font, fill=hex_rgb(colors["sub_text"]))
+            # 배경은 영상 전체에 걸쳐 천천히 흘러간다
+            ox = PAN_X / 2 * (1 + math.sin(2 * math.pi * t / 16))
+            oy = PAN_Y * t / total
+            frame = bg.crop((int(ox), int(oy), int(ox) + W, int(oy) + H))
+            draw = ImageDraw.Draw(frame)
 
-    img.save(out_path)
+            # 상단 진행바 (부드럽게 채워짐) + 로고 (영상 시작 때 위에서 내려옴)
+            draw.rectangle([0, 0, W, 10], fill=(60, 52, 44))
+            draw.rectangle([0, 0, int(W * t / total), 10], fill=gold)
+            ht = ease_out(t / 0.6)
+            paste_layer(frame, header, W / 2, 140 + 75 - (1 - ht) * 120, alpha=ht)
+
+            scene.draw(frame, draw, t - scene.start)
+
+            if f == thumb_frame:
+                frame.save(thumb_path)
+            proc.stdin.write(frame.tobytes())
+
+            pct = int(f / n_frames * 10)
+            if pct != last_pct:
+                print(f"    렌더링 {pct * 10}%", end="\r", flush=True)
+                last_pct = pct
+        proc.stdin.close()
+    except BrokenPipeError:
+        pass
+    err = proc.stderr.read().decode(errors="replace")
+    if proc.wait() != 0:
+        sys.exit(f"FFmpeg 오류:\n{err}")
+    print("    렌더링 100%")
 
 
 # ---------------------------------------------------------------------------
-# 4. 영상 합성 (FFmpeg)
+# 4. 오디오 (FFmpeg)
 # ---------------------------------------------------------------------------
 
 def run_ffmpeg(args):
@@ -322,34 +493,27 @@ def run_ffmpeg(args):
         sys.exit(f"FFmpeg 오류:\n{result.stderr}")
 
 
-def make_clip(image, voice, duration, out_path):
-    fade_out = max(duration - 0.15, 0)
-    video_filter = f"fade=t=in:st=0:d=0.15,fade=t=out:st={fade_out:.2f}:d=0.15,format=yuv420p"
+def make_scene_audio(voice, duration, out_path):
+    """장면 길이에 맞춘 음성 조각 (음성이 없으면 무음)."""
     audio_in = ["-i", str(voice)] if voice else ["-f", "lavfi", "-i", "anullsrc=r=44100:cl=stereo"]
-    run_ffmpeg([
-        "-loop", "1", "-framerate", str(FPS), "-i", str(image), *audio_in,
-        "-t", f"{duration:.2f}", "-vf", video_filter, "-af", "apad",
-        "-c:v", "libx264", "-preset", "medium", "-crf", "20", "-r", str(FPS),
-        "-c:a", "aac", "-ar", "44100", "-ac", "2", "-b:a", "160k",
-        str(out_path),
-    ])
+    run_ffmpeg([*audio_in, "-af", "apad", "-t", f"{duration:.3f}",
+                "-ar", "44100", "-ac", "2", "-c:a", "pcm_s16le", str(out_path)])
 
 
-def concat_clips(clips, out_path, workdir):
-    list_file = workdir / "clips.txt"
-    list_file.write_text("".join(f"file '{c.name}'\n" for c in clips), encoding="utf-8")
+def concat_audio(parts, out_path, workdir):
+    list_file = workdir / "audio.txt"
+    list_file.write_text("".join(f"file '{p.name}'\n" for p in parts), encoding="utf-8")
     run_ffmpeg(["-f", "concat", "-safe", "0", "-i", str(list_file), "-c", "copy", str(out_path)])
 
 
-def add_bgm(video, bgm, volume, out_path):
-    total = media_duration(video)
+def add_bgm(audio, bgm, volume, total, out_path):
     fade_st = max(total - 1.5, 0)
     run_ffmpeg([
-        "-i", str(video), "-stream_loop", "-1", "-i", str(bgm),
+        "-i", str(audio), "-stream_loop", "-1", "-i", str(bgm),
         "-filter_complex",
         f"[1:a]volume={volume},afade=t=out:st={fade_st:.2f}:d=1.5[bg];"
         f"[0:a][bg]amix=inputs=2:duration=first:normalize=0[a]",
-        "-map", "0:v", "-map", "[a]", "-c:v", "copy", "-c:a", "aac", "-b:a", "160k",
+        "-map", "[a]", "-ar", "44100", "-ac", "2", "-c:a", "pcm_s16le",
         "-t", f"{total:.2f}", str(out_path),
     ])
 
@@ -378,36 +542,43 @@ def build_short(script, cfg, out_root, use_voice=True, bgm_path=None):
         logo = Image.open(logo_path).convert("RGBA")
         logo.thumbnail((84, 84))
 
+    # 장면별 음성을 만들고 길이를 정한다
     scenes = script["scenes"]
-    clips = []
+    timeline, audio_parts, start = [], [], 0.0
     for i, scene in enumerate(scenes):
         print(f"  · 장면 {i + 1}/{len(scenes)}: {scene['caption']}")
-        image = work / f"scene_{i:02d}.png"
-        render_scene(scene, i, len(scenes), cfg, font_path, logo, image)
-
         voice = None
         if use_voice:
             voice = work / f"voice_{i:02d}.mp3"
             try:
                 make_voice(scene["narration"], voice, cfg)
-                duration = media_duration(voice) + SCENE_PADDING
+                speech = media_duration(voice)
             except Exception as e:  # 네트워크 문제 등: 음성 없이 계속 진행
                 print(f"    ! 음성 생성 실패 ({type(e).__name__}), 이 장면은 무음으로 만듭니다.")
                 voice = None
         if voice is None:
-            duration = max(2.5, len(scene["narration"]) * 0.12)
+            speech = max(2.2, len(scene["narration"]) * 0.11)
+        duration = speech + SCENE_PADDING
+        if i == len(scenes) - 1:
+            duration += 1.2  # 마지막 상담 화면은 조금 더 보여준다
 
-        clip = work / f"clip_{i:02d}.mp4"
-        make_clip(image, voice, duration, clip)
-        clips.append(clip)
+        part = work / f"audio_{i:02d}.wav"
+        make_scene_audio(voice, duration, part)
+        audio_parts.append(part)
+        timeline.append(SceneAnimation(scene, i, len(scenes), start, duration, speech, cfg, font_path))
+        start += duration
+    total = start
 
-    final = out_dir / "short.mp4"
+    audio = work / "audio.wav"
+    concat_audio(audio_parts, audio, work)
     if bgm_path and bgm_path.exists():
-        merged = work / "merged.mp4"
-        concat_clips(clips, merged, work)
-        add_bgm(merged, bgm_path, cfg.get("bgm_volume", 0.12), final)
-    else:
-        concat_clips(clips, final, work)
+        mixed = work / "audio_bgm.wav"
+        add_bgm(audio, bgm_path, cfg.get("bgm_volume", 0.12), total, mixed)
+        audio = mixed
+
+    print("  · 애니메이션 렌더링 중...")
+    final = out_dir / "short.mp4"
+    render_video(timeline, total, cfg, font_path, logo, audio, final, out_dir / "thumbnail.png")
 
     upload_text = "\n".join([
         f"[제목]\n{script['title']}",
@@ -415,7 +586,6 @@ def build_short(script, cfg, out_root, use_voice=True, bgm_path=None):
         f"\n[해시태그]\n{' '.join(script['hashtags'])}",
     ])
     (out_dir / "upload.txt").write_text(upload_text + "\n", encoding="utf-8")
-    shutil.copy(work / "scene_00.png", out_dir / "thumbnail.png")
     return out_dir, media_duration(final)
 
 
