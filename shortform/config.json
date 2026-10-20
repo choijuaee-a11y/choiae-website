@@ -1,0 +1,27 @@
+{
+  "brand": {
+    "name": "최애손해사정",
+    "tagline": "THE FAVORITE PARTNER",
+    "phone": "010-9878-4931",
+    "cta": "보험금 고민, 무료로 상담받아 보세요",
+    "logo": "../assets/logo-icon.png"
+  },
+  "colors": {
+    "background": "#201c18",
+    "background_bottom": "#3a3127",
+    "text": "#ffffff",
+    "highlight": "#c1aa7d",
+    "sub_text": "#e7ded0"
+  },
+  "font": "",
+  "voice": {
+    "name": "ko-KR-SunHiNeural",
+    "rate": "+10%"
+  },
+  "claude": {
+    "model": "claude-opus-5-5",
+    "effort": "medium"
+  },
+  "bgm": "assets/bgm.mp3",
+  "bgm_volume": 0.12
+}
