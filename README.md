@@ -51,3 +51,8 @@ python3 -m http.server 8000
 - **색상**: `css/style.css` 최상단 `:root` 변수(`--gold` 등)를 바꾸면 전체 톤이 함께 바뀝니다.
 - **로고**: `assets/logo-icon.png`를 교체하면 헤더/히어로/회사소개/푸터/파비콘에 모두 반영됩니다.
   전체 조합 로고(아이콘+글자)가 필요하면 `assets/logo-full.png`를 사용하세요.
+
+## 블로그 → 쇼츠 자동 생성기
+
+`shorts-maker/` 폴더에 네이버 블로그 글을 AI로 쇼츠 영상으로 만들어 주는 도구가 있습니다.
+홈페이지와는 별개로 PC에서 실행하는 프로그램이며, 사용법은 [shorts-maker/README.md](shorts-maker/README.md)를 참고하세요.
